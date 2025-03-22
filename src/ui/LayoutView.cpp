@@ -67,11 +67,11 @@ bool LayoutView::LayoutMessageHandler::pageAboutToLoad(const juce::String &url)
         const char *data = nullptr;
 
         // Get the binary data (not used in this simplified version but kept for compatibility)
-        if (resourceName == "some_font_ttf")
+        if (resourceName == "old_english_hearts_ttf")
         {
             // If you want to add a font later, add it to the binary resources and handle it here
-            // data = BinaryData::some_font_ttf;
-            // size = BinaryData::some_font_ttfSize;
+            data = BinaryData::old_english_hearts_ttf;
+            size = BinaryData::old_english_hearts_ttfSize;
 
             if (data != nullptr && size > 0)
             {

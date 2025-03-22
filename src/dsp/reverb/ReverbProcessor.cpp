@@ -32,32 +32,37 @@ void ReverbProcessor::processBlock(juce::AudioBuffer<float> &buffer)
     if (bufferSize == 0)
         return;
 
-    // Create a buffer for the dry signal
-    juce::AudioBuffer<float> dryBuffer;
-    dryBuffer.makeCopyOf(buffer);
+    // Create a buffer for the wet signal
+    juce::AudioBuffer<float> wetBuffer;
+    wetBuffer.makeCopyOf(buffer);
 
-    // Process stereo (or mono if that's all we have)
+    // Process the wet buffer with reverb
     if (numChannels == 2)
     {
-        reverb.processStereo(buffer.getWritePointer(0),
-                             buffer.getWritePointer(1),
+        // Process stereo
+        reverb.processStereo(wetBuffer.getWritePointer(0),
+                             wetBuffer.getWritePointer(1),
                              numSamples);
     }
     else if (numChannels == 1)
     {
         // Create a temporary buffer for the second channel in mono case
-        juce::AudioBuffer<float> temp(2, numSamples);
-        temp.copyFrom(0, 0, buffer, 0, 0, numSamples);
-        temp.copyFrom(1, 0, buffer, 0, 0, numSamples);
+        juce::AudioBuffer<float> tempStereo(2, numSamples);
+        tempStereo.copyFrom(0, 0, wetBuffer, 0, 0, numSamples);
+        tempStereo.copyFrom(1, 0, wetBuffer, 0, 0, numSamples);
 
         // Process as stereo
-        reverb.processStereo(temp.getWritePointer(0),
-                             temp.getWritePointer(1),
+        reverb.processStereo(tempStereo.getWritePointer(0),
+                             tempStereo.getWritePointer(1),
                              numSamples);
 
-        // Copy back the first channel to our buffer
-        buffer.copyFrom(0, 0, temp, 0, 0, numSamples);
+        // Copy back the first channel to our wet buffer
+        wetBuffer.copyFrom(0, 0, tempStereo, 0, 0, numSamples);
     }
+
+    // Since the JUCE Reverb processor already applies wet/dry internally,
+    // we don't need to manually mix here. Just copy the processed buffer back.
+    buffer.makeCopyOf(wetBuffer);
 }
 
 void ReverbProcessor::reset()

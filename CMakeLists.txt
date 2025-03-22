@@ -26,6 +26,9 @@ juce_add_binary_data(RuptureResources
         # Resources
         src/resources/layout.html
         src/resources/layout.css
+
+        # Fonts
+        src/resources/fonts/old_english_hearts.ttf
 )
 
 add_dependencies(RuptureResources CompileSCSS)

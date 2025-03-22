@@ -12,6 +12,8 @@ public:
     void processBlock(juce::AudioBuffer<float> &buffer);
     void reset();
 
+    void updateReverbSettings();
+
     // Parameter setters
     void setRoomSize(float newRoomSize);     // 0.0 - 1.0
     void setDamping(float newDamping);       // 0.0 - 1.0

@@ -8,8 +8,8 @@ class RuptureAudioProcessorEditor : public juce::AudioProcessorEditor,
                                     private juce::Timer
 {
 public:
-    static constexpr int CANVAS_WIDTH = 720;
-    static constexpr int CANVAS_HEIGHT = 320;
+    static constexpr int CANVAS_WIDTH = 775;
+    static constexpr int CANVAS_HEIGHT = 475;
 
     RuptureAudioProcessorEditor(RuptureAudioProcessor &);
     ~RuptureAudioProcessorEditor() override;
