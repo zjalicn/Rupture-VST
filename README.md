@@ -35,5 +35,3 @@
    - The project is auto copying to the default vst folder for me. I'm using a Mac but if you're on Windows it should copy to `C:\Program Files\Common Files\VST3` or Linux `~/.vst3`. If not do it manually.
 
 ---
-
-![Readme Img](./readme.jpg)
