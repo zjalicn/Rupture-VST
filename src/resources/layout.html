@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="transparent" />
+    <link rel="stylesheet" href="./layout.css" />
+  </head>
+  <body>
+    <div class="plugin-container">
+      <!-- Header Section -->
+      <div class="header">
+        <div class="title">Rupture</div>
+      </div>
+
+      <!-- Main Content Section -->
+      <div class="main-content">
+        <!-- Top Row: Meters and Oscilloscope Section -->
+        <div class="top-row">
+          <!-- Input Meters -->
+          <div class="meters-column input-meters">
+            <div class="meters-label">In</div>
+            <div class="meters">
+              <div class="meter">
+                <div class="bar-container">
+                  <div id="leftBar" class="bar"></div>
+                  <div class="bar-markers">
+                    <div class="marker marker-0"></div>
+                    <div class="marker marker-3"></div>
+                    <div class="marker marker-6"></div>
+                    <div class="marker marker-10"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="meter">
+                <div class="bar-container">
+                  <div id="rightBar" class="bar"></div>
+                  <div class="bar-markers">
+                    <div class="marker marker-0"></div>
+                    <div class="marker marker-3"></div>
+                    <div class="marker marker-6"></div>
+                    <div class="marker marker-10"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Oscilloscope in the middle -->
+          <div class="oscilloscope-section">
+            <div class="oscilloscope-container">
+              <canvas id="oscilloscopeCanvas"></canvas>
+            </div>
+          </div>
+
+          <!-- Output Meters -->
+          <div class="meters-column output-meters">
+            <div class="meters-label">Out</div>
+            <div class="meters">
+              <div class="meter">
+                <div class="bar-container">
+                  <div id="outLeftBar" class="bar output-bar"></div>
+                  <div class="bar-markers">
+                    <div class="marker marker-0"></div>
+                    <div class="marker marker-3"></div>
+                    <div class="marker marker-6"></div>
+                    <div class="marker marker-10"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="meter">
+                <div class="bar-container">
+                  <div id="outRightBar" class="bar output-bar"></div>
+                  <div class="bar-markers">
+                    <div class="marker marker-0"></div>
+                    <div class="marker marker-3"></div>
+                    <div class="marker marker-6"></div>
+                    <div class="marker marker-10"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reverb Controls Section -->
+        <div class="reverb-section">
+          <div class="reverb-title">Reverb</div>
+          <div class="reverb-controls">
+            <div class="knob-container">
+              <div class="knob" id="roomSizeKnob">
+                <div id="roomSizeIndicator" class="knob-indicator"></div>
+              </div>
+              <div class="knob-label">Room Size</div>
+              <div id="roomSizeValue" class="knob-value">50%</div>
+            </div>
+
+            <div class="knob-container">
+              <div class="knob" id="dampingKnob">
+                <div id="dampingIndicator" class="knob-indicator"></div>
+              </div>
+              <div class="knob-label">Damping</div>
+              <div id="dampingValue" class="knob-value">50%</div>
+            </div>
+
+            <div class="knob-container">
+              <div class="knob" id="wetLevelKnob">
+                <div id="wetLevelIndicator" class="knob-indicator"></div>
+              </div>
+              <div class="knob-label">Wet</div>
+              <div id="wetLevelValue" class="knob-value">33%</div>
+            </div>
+
+            <div class="knob-container">
+              <div class="knob" id="dryLevelKnob">
+                <div id="dryLevelIndicator" class="knob-indicator"></div>
+              </div>
+              <div class="knob-label">Dry</div>
+              <div id="dryLevelValue" class="knob-value">40%</div>
+            </div>
+
+            <div class="knob-container">
+              <div class="knob" id="widthKnob">
+                <div id="widthIndicator" class="knob-indicator"></div>
+              </div>
+              <div class="knob-label">Width</div>
+              <div id="widthValue" class="knob-value">100%</div>
+            </div>
+          </div>
+
+          <div class="freeze-toggle">
+            <div class="toggle-label">Freeze</div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="freezeModeToggle" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tooltip" class="tooltip"></div>
+    <div id="debug"></div>
+    <script>
+      // Initialize state variables
+      const state = {
+        reverb: {
+          roomSize: 0.5,
+          damping: 0.5,
+          wetLevel: 0.33,
+          dryLevel: 0.4,
+          width: 1.0,
+          freezeMode: 0.0,
+        },
+        meters: {
+          lastLeftLevel: 0,
+          lastRightLevel: 0,
+          outLeftLevel: 0,
+          outRightLevel: 0,
+        },
+        oscilloscope: {
+          data: [],
+        },
+      };
+
+      let isDragging = false;
+      let activeKnob = null;
+      let lastClickTime = 0;
+
+      // =======================
+      // Utility Functions
+      // =======================
+
+      function log(msg) {
+        const debug = document.getElementById("debug");
+        debug.innerHTML += msg + "<br>";
+        debug.style.display = "block";
+      }
+
+      // Protocol handler to send values back to C++
+      window.valueChanged = function (module, param, value) {
+        try {
+          let url;
+          if (module === "reverb") {
+            url = "rupture:reverb:" + param + "=" + value;
+          } else {
+            url = "rupture:" + param + "=" + value;
+          }
+          window.location.href = url;
+        } catch (e) {
+          log("Error in valueChanged: " + e.message);
+        }
+      };
+
+      // =======================
+      // Reverb Controls
+      // =======================
+
+      function updateReverbUI(
+        roomSize,
+        damping,
+        wetLevel,
+        dryLevel,
+        width,
+        freezeMode
+      ) {
+        if (roomSize !== undefined)
+          state.reverb.roomSize = parseFloat(roomSize);
+        if (damping !== undefined) state.reverb.damping = parseFloat(damping);
+        if (wetLevel !== undefined)
+          state.reverb.wetLevel = parseFloat(wetLevel);
+        if (dryLevel !== undefined)
+          state.reverb.dryLevel = parseFloat(dryLevel);
+        if (width !== undefined) state.reverb.width = parseFloat(width);
+        if (freezeMode !== undefined)
+          state.reverb.freezeMode = parseFloat(freezeMode);
+
+        // Map 0-1 range to 225-45 degrees (7 o'clock to 3 o'clock)
+        const roomSizeAngle = 225 + state.reverb.roomSize * 270;
+        const dampingAngle = 225 + state.reverb.damping * 270;
+        const wetLevelAngle = 225 + state.reverb.wetLevel * 270;
+        const dryLevelAngle = 225 + state.reverb.dryLevel * 270;
+        const widthAngle = 225 + state.reverb.width * 270;
+
+        // Update knob rotations
+        document.getElementById(
+          "roomSizeIndicator"
+        ).style.transform = `translate(-50%, -100%) rotate(${roomSizeAngle}deg)`;
+        document.getElementById(
+          "dampingIndicator"
+        ).style.transform = `translate(-50%, -100%) rotate(${dampingAngle}deg)`;
+        document.getElementById(
+          "wetLevelIndicator"
+        ).style.transform = `translate(-50%, -100%) rotate(${wetLevelAngle}deg)`;
+        document.getElementById(
+          "dryLevelIndicator"
+        ).style.transform = `translate(-50%, -100%) rotate(${dryLevelAngle}deg)`;
+        document.getElementById(
+          "widthIndicator"
+        ).style.transform = `translate(-50%, -100%) rotate(${widthAngle}deg)`;
+
+        // Update value displays
+        document.getElementById("roomSizeValue").textContent = `${Math.round(
+          state.reverb.roomSize * 100
+        )}%`;
+        document.getElementById("dampingValue").textContent = `${Math.round(
+          state.reverb.damping * 100
+        )}%`;
+        document.getElementById("wetLevelValue").textContent = `${Math.round(
+          state.reverb.wetLevel * 100
+        )}%`;
+        document.getElementById("dryLevelValue").textContent = `${Math.round(
+          state.reverb.dryLevel * 100
+        )}%`;
+        document.getElementById("widthValue").textContent = `${Math.round(
+          state.reverb.width * 100
+        )}%`;
+
+        // Update freeze toggle
+        document.getElementById("freezeModeToggle").checked =
+          state.reverb.freezeMode > 0.5;
+      }
+
+      // Set up Room Size knob
+      document
+        .getElementById("roomSizeKnob")
+        .addEventListener("mousedown", function (e) {
+          e.preventDefault();
+          isDragging = true;
+          activeKnob = "roomSize";
+          const startY = e.clientY;
+          const startValue = state.reverb.roomSize;
+
+          function handleMove(moveEvent) {
+            moveEvent.preventDefault();
+            const deltaY = startY - moveEvent.clientY;
+            const newValue = Math.max(
+              0,
+              Math.min(1, startValue + deltaY / 100)
+            );
+
+            state.reverb.roomSize = newValue;
+            window.valueChanged("reverb", "roomSize", newValue);
+            updateReverbUI();
+          }
+
+          document.addEventListener("mousemove", handleMove);
+          document.addEventListener(
+            "mouseup",
+            () => {
+              document.removeEventListener("mousemove", handleMove);
+              isDragging = false;
+              activeKnob = null;
+            },
+            { once: true }
+          );
+        });
+
+      // Set up Damping knob
+      document
+        .getElementById("dampingKnob")
+        .addEventListener("mousedown", function (e) {
+          e.preventDefault();
+          isDragging = true;
+          activeKnob = "damping";
+          const startY = e.clientY;
+          const startValue = state.reverb.damping;
+
+          function handleMove(moveEvent) {
+            moveEvent.preventDefault();
+            const deltaY = startY - moveEvent.clientY;
+            const newValue = Math.max(
+              0,
+              Math.min(1, startValue + deltaY / 100)
+            );
+
+            state.reverb.damping = newValue;
+            window.valueChanged("reverb", "damping", newValue);
+            updateReverbUI();
+          }
+
+          document.addEventListener("mousemove", handleMove);
+          document.addEventListener(
+            "mouseup",
+            () => {
+              document.removeEventListener("mousemove", handleMove);
+              isDragging = false;
+              activeKnob = null;
+            },
+            { once: true }
+          );
+        });
+
+      // Set up Wet Level knob
+      document
+        .getElementById("wetLevelKnob")
+        .addEventListener("mousedown", function (e) {
+          e.preventDefault();
+          isDragging = true;
+          activeKnob = "wetLevel";
+          const startY = e.clientY;
+          const startValue = state.reverb.wetLevel;
+
+          function handleMove(moveEvent) {
+            moveEvent.preventDefault();
+            const deltaY = startY - moveEvent.clientY;
+            const newValue = Math.max(
+              0,
+              Math.min(1, startValue + deltaY / 100)
+            );
+
+            state.reverb.wetLevel = newValue;
+            window.valueChanged("reverb", "wetLevel", newValue);
+            updateReverbUI();
+          }
+
+          document.addEventListener("mousemove", handleMove);
+          document.addEventListener(
+            "mouseup",
+            () => {
+              document.removeEventListener("mousemove", handleMove);
+              isDragging = false;
+              activeKnob = null;
+            },
+            { once: true }
+          );
+        });
+
+      // Set up Dry Level knob
+      document
+        .getElementById("dryLevelKnob")
+        .addEventListener("mousedown", function (e) {
+          e.preventDefault();
+          isDragging = true;
+          activeKnob = "dryLevel";
+          const startY = e.clientY;
+          const startValue = state.reverb.dryLevel;
+
+          function handleMove(moveEvent) {
+            moveEvent.preventDefault();
+            const deltaY = startY - moveEvent.clientY;
+            const newValue = Math.max(
+              0,
+              Math.min(1, startValue + deltaY / 100)
+            );
+
+            state.reverb.dryLevel = newValue;
+            window.valueChanged("reverb", "dryLevel", newValue);
+            updateReverbUI();
+          }
+
+          document.addEventListener("mousemove", handleMove);
+          document.addEventListener(
+            "mouseup",
+            () => {
+              document.removeEventListener("mousemove", handleMove);
+              isDragging = false;
+              activeKnob = null;
+            },
+            { once: true }
+          );
+        });
+
+      // Set up Width knob
+      document
+        .getElementById("widthKnob")
+        .addEventListener("mousedown", function (e) {
+          e.preventDefault();
+          isDragging = true;
+          activeKnob = "width";
+          const startY = e.clientY;
+          const startValue = state.reverb.width;
+
+          function handleMove(moveEvent) {
+            moveEvent.preventDefault();
+            const deltaY = startY - moveEvent.clientY;
+            const newValue = Math.max(
+              0,
+              Math.min(1, startValue + deltaY / 100)
+            );
+
+            state.reverb.width = newValue;
+            window.valueChanged("reverb", "width", newValue);
+            updateReverbUI();
+          }
+
+          document.addEventListener("mousemove", handleMove);
+          document.addEventListener(
+            "mouseup",
+            () => {
+              document.removeEventListener("mousemove", handleMove);
+              isDragging = false;
+              activeKnob = null;
+            },
+            { once: true }
+          );
+        });
+
+      // Set up Freeze toggle
+      document
+        .getElementById("freezeModeToggle")
+        .addEventListener("change", function () {
+          const newValue = this.checked ? 1.0 : 0.0;
+          state.reverb.freezeMode = newValue;
+          window.valueChanged("reverb", "freezeMode", newValue);
+        });
+
+      // =======================
+      // Oscilloscope
+      // =======================
+
+      const canvas = document.getElementById("oscilloscopeCanvas");
+      const ctx = canvas.getContext("2d", { alpha: true });
+      let canvasSize = 0;
+
+      // Default buffer size for the oscilloscope
+      const BUFFER_SIZE = 256;
+
+      // Initialize with empty data
+      state.oscilloscope.data = Array(BUFFER_SIZE).fill(0);
+
+      function resizeOscilloscopeCanvas() {
+        const container = document.querySelector(".oscilloscope-container");
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+
+        drawOscilloscope();
+      }
+
+      function drawOscilloscope() {
+        if (!ctx) return;
+
+        // Clear canvas with transparency
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const width = canvas.width;
+        const height = canvas.height;
+        const centerY = height / 2;
+
+        // Draw center line
+        ctx.beginPath();
+        ctx.moveTo(0, centerY);
+        ctx.lineTo(width, centerY);
+        ctx.strokeStyle = "rgba(108, 92, 231, 0.3)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Draw the waveform
+        if (state.oscilloscope.data.length > 0) {
+          ctx.beginPath();
+
+          const pointSpacing = width / state.oscilloscope.data.length;
+
+          // Start at the first data point
+          const firstY = centerY - state.oscilloscope.data[0] * height * 0.4;
+          ctx.moveTo(0, firstY);
+
+          // Draw a line to each subsequent data point
+          for (let i = 1; i < state.oscilloscope.data.length; i++) {
+            const x = i * pointSpacing;
+            const y = centerY - state.oscilloscope.data[i] * height * 0.4;
+            ctx.lineTo(x, y);
+          }
+
+          ctx.strokeStyle = "#6c5ce7";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      }
+
+      // =======================
+      // Meters and Audio State
+      // =======================
+
+      function setAudioLevels(inLeft, inRight, outLeft, outRight) {
+        // Ensure minimum value is 0 instead of default minimums
+        inLeft = parseFloat(inLeft) || 0;
+        inRight = parseFloat(inRight) || 0;
+        outLeft = parseFloat(outLeft) || 0;
+        outRight = parseFloat(outRight) || 0;
+
+        // Store the levels
+        state.meters.lastLeftLevel = inLeft;
+        state.meters.lastRightLevel = inRight;
+        state.meters.outLeftLevel = outLeft;
+        state.meters.outRightLevel = outRight;
+
+        // Update input meters
+        document.getElementById("leftBar").style.height =
+          inLeft <= 0.01 ? "0" : inLeft + "%";
+        document.getElementById("rightBar").style.height =
+          inRight <= 0.01 ? "0" : inRight + "%";
+
+        // Update output meters
+        document.getElementById("outLeftBar").style.height =
+          outLeft <= 0.01 ? "0" : outLeft + "%";
+        document.getElementById("outRightBar").style.height =
+          outRight <= 0.01 ? "0" : outRight + "%";
+      }
+
+      // =======================
+      // Public Methods for C++ to call
+      // =======================
+
+      // Method for C++ to update oscilloscope data
+      window.updateOscilloscopeData = function (dataArray) {
+        try {
+          if (typeof dataArray === "string") {
+            // Parse if it's a JSON string
+            state.oscilloscope.data = JSON.parse(dataArray);
+          } else {
+            state.oscilloscope.data = dataArray;
+          }
+          drawOscilloscope();
+        } catch (e) {
+          console.error("Error updating oscilloscope data:", e);
+        }
+      };
+
+      // Method for C++ to update reverb parameters
+      window.setReverbValues = function (
+        roomSize,
+        damping,
+        wetLevel,
+        dryLevel,
+        width,
+        freezeMode
+      ) {
+        updateReverbUI(
+          roomSize,
+          damping,
+          wetLevel,
+          dryLevel,
+          width,
+          freezeMode
+        );
+      };
+
+      // Method for C++ to set audio levels
+      window.setAudioState = function (inLeft, inRight, outLeft, outRight) {
+        setAudioLevels(
+          parseFloat(inLeft),
+          parseFloat(inRight),
+          parseFloat(outLeft),
+          parseFloat(outRight)
+        );
+        return true;
+      };
+
+      // Initialize on load
+      window.addEventListener("load", function () {
+        // Initialize oscilloscope
+        resizeOscilloscopeCanvas();
+        window.addEventListener("resize", resizeOscilloscopeCanvas);
+
+        // Initialize reverb values
+        updateReverbUI(0.5, 0.5, 0.33, 0.4, 1.0, 0.0);
+
+        // Force an initial update with explicit zero values
+        setAudioLevels(0, 0, 0, 0);
+      });
+    </script>
+  </body>
+</html>
