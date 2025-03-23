@@ -76,7 +76,7 @@ html {
 }
 
 // =======================
-// Top Row Layout (Meters and Oscilloscope)
+// Top Row Layout (Meters and Large Knob)
 // =======================
 
 .top-row {
@@ -185,31 +185,53 @@ html {
 }
 
 // =======================
-// Oscilloscope
+// Large Dry/Wet Knob
 // =======================
 
-.oscilloscope-section {
+.large-knob-section {
   display: flex;
   flex: 1;
   align-items: center;
   justify-content: center;
 }
 
-.oscilloscope-container {
-  width: 100%;
-  height: 220px;
-  background-color: $background-darker;
-  border: $border-width solid $border-color;
-  border-radius: $border-radius-sm;
-  overflow: hidden;
+.large-knob-container {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
 }
 
-#oscilloscopeCanvas {
-  width: 100%;
-  height: 100%;
+.knob-large {
+  width: $knob-size-xxlarge;
+  height: $knob-size-xxlarge;
+  border-radius: 50%;
+  background: $knob-background;
+  border: 3px solid $border-color;
+  position: relative;
+  cursor: pointer;
+  box-shadow: 0 6px 12px $knob-shadow;
+  margin-bottom: $spacing-md;
+
+  &:hover {
+    border-color: $primary-hover;
+  }
+
+  &:active {
+    box-shadow: 0 4px 8px $knob-shadow;
+  }
+}
+
+.knob-indicator-large {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  width: 5px;
+  height: $knob-size-xxlarge * 0.4;
+  background-color: $knob-indicator;
+  border-radius: 2px;
+  transform-origin: bottom center;
 }
 
 // =======================

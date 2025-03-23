@@ -167,12 +167,13 @@ void LayoutView::timerCallback()
     float width = reverbProcessor.getWidth();
     float freezeMode = reverbProcessor.getFreezeMode();
 
-    bool reverbChanged = std::abs(roomSize - lastRoomSize) > 0.001f ||
-                         std::abs(damping - lastDamping) > 0.001f ||
-                         std::abs(wetLevel - lastWetLevel) > 0.001f ||
-                         std::abs(dryLevel - lastDryLevel) > 0.001f ||
-                         std::abs(width - lastWidth) > 0.001f ||
-                         std::abs(freezeMode - lastFreezeMode) > 0.001f;
+    // Use a larger threshold to prevent jittery UI updates during user interaction
+    bool reverbChanged = std::abs(roomSize - lastRoomSize) > 0.01f ||
+                         std::abs(damping - lastDamping) > 0.01f ||
+                         std::abs(wetLevel - lastWetLevel) > 0.01f ||
+                         std::abs(dryLevel - lastDryLevel) > 0.01f ||
+                         std::abs(width - lastWidth) > 0.01f ||
+                         std::abs(freezeMode - lastFreezeMode) > 0.01f;
 
     if (reverbChanged)
     {
@@ -181,7 +182,6 @@ void LayoutView::timerCallback()
                               juce::String(roomSize) + ", " +
                               juce::String(damping) + ", " +
                               juce::String(wetLevel) + ", " +
-                              juce::String(dryLevel) + ", " +
                               juce::String(width) + ", " +
                               juce::String(freezeMode) + ")";
         webView->evaluateJavascript(script);
@@ -193,28 +193,12 @@ void LayoutView::timerCallback()
         lastWidth = width;
         lastFreezeMode = freezeMode;
     }
-
-    // Update oscilloscope if there's new audio data
-    {
-        juce::ScopedLock lock(bufferLock);
-        if (latestBuffer.getNumChannels() > 0 && latestBuffer.getNumSamples() > 0)
-        {
-            juce::String dataJson = prepareWaveformData();
-            juce::String script = "window.updateOscilloscopeData(" + dataJson + ")";
-            webView->evaluateJavascript(script);
-        }
-    }
 }
 
 void LayoutView::updateBuffer(const juce::AudioBuffer<float> &buffer)
 {
-    juce::ScopedLock lock(bufferLock);
-
-    // Update our buffer copy with the latest audio data
-    if (buffer.getNumChannels() == 0 || buffer.getNumSamples() == 0)
-        return;
-
-    latestBuffer.makeCopyOf(buffer);
+    // We're not using the oscilloscope anymore, but we'll keep this method
+    // to maintain compatibility with existing code that calls it
 }
 
 void LayoutView::updateLevels(float leftLevel, float rightLevel, float outLeftLevel, float outRightLevel)
@@ -254,88 +238,6 @@ void LayoutView::updateLevels(float leftLevel, float rightLevel, float outLeftLe
     }
 }
 
-juce::String LayoutView::prepareWaveformData()
-{
-    juce::ScopedLock lock(bufferLock);
-
-    // Number of data points to display
-    const int numPoints = 128;
-
-    if (latestBuffer.getNumChannels() == 0 || latestBuffer.getNumSamples() == 0)
-        return "[]";
-
-    // Create a JSON array of waveform data points
-    juce::String jsonArray = "[";
-
-    // Combine channels if stereo
-    if (latestBuffer.getNumChannels() > 1)
-    {
-        const float *leftChannel = latestBuffer.getReadPointer(0);
-        const float *rightChannel = latestBuffer.getReadPointer(1);
-
-        // Sample the buffer at regular intervals
-        const int samplesPerPoint = juce::jmax(1, latestBuffer.getNumSamples() / numPoints);
-
-        for (int i = 0; i < numPoints && i * samplesPerPoint < latestBuffer.getNumSamples(); ++i)
-        {
-            // Average the samples in this segment
-            float sum = 0.0f;
-            int count = 0;
-
-            for (int j = 0; j < samplesPerPoint && i * samplesPerPoint + j < latestBuffer.getNumSamples(); ++j)
-            {
-                int sampleIndex = i * samplesPerPoint + j;
-                // Average of left and right channels
-                sum += (leftChannel[sampleIndex] + rightChannel[sampleIndex]) * 0.5f;
-                count++;
-            }
-
-            // Calculate average value for this point
-            float value = count > 0 ? sum / count : 0.0f;
-
-            // Add to JSON array
-            jsonArray += juce::String(value);
-
-            // Add comma if not the last item
-            if (i < numPoints - 1 && (i + 1) * samplesPerPoint < latestBuffer.getNumSamples())
-                jsonArray += ",";
-        }
-    }
-    else // Mono
-    {
-        const float *channel = latestBuffer.getReadPointer(0);
-
-        // Sample the buffer at regular intervals
-        const int samplesPerPoint = juce::jmax(1, latestBuffer.getNumSamples() / numPoints);
-
-        for (int i = 0; i < numPoints && i * samplesPerPoint < latestBuffer.getNumSamples(); ++i)
-        {
-            // Average the samples in this segment
-            float sum = 0.0f;
-            int count = 0;
-
-            for (int j = 0; j < samplesPerPoint && i * samplesPerPoint + j < latestBuffer.getNumSamples(); ++j)
-            {
-                sum += channel[i * samplesPerPoint + j];
-                count++;
-            }
-
-            // Calculate average value for this point
-            float value = count > 0 ? sum / count : 0.0f;
-
-            // Add to JSON array
-            jsonArray += juce::String(value);
-
-            // Add comma if not the last item
-            if (i < numPoints - 1 && (i + 1) * samplesPerPoint < latestBuffer.getNumSamples())
-                jsonArray += ",";
-        }
-    }
-
-    jsonArray += "]";
-    return jsonArray;
-}
-
 void LayoutView::refreshAllParameters()
 {
     // Force an immediate refresh of all parameters
@@ -345,7 +247,6 @@ void LayoutView::refreshAllParameters()
         float roomSize = reverbProcessor.getRoomSize();
         float damping = reverbProcessor.getDamping();
         float wetLevel = reverbProcessor.getWetLevel();
-        float dryLevel = reverbProcessor.getDryLevel();
         float width = reverbProcessor.getWidth();
         float freezeMode = reverbProcessor.getFreezeMode();
 
@@ -353,7 +254,6 @@ void LayoutView::refreshAllParameters()
                               juce::String(roomSize) + ", " +
                               juce::String(damping) + ", " +
                               juce::String(wetLevel) + ", " +
-                              juce::String(dryLevel) + ", " +
                               juce::String(width) + ", " +
                               juce::String(freezeMode) + ")";
         webView->evaluateJavascript(script);
@@ -361,7 +261,7 @@ void LayoutView::refreshAllParameters()
         lastRoomSize = roomSize;
         lastDamping = damping;
         lastWetLevel = wetLevel;
-        lastDryLevel = dryLevel;
+        lastDryLevel = reverbProcessor.getDryLevel();
         lastWidth = width;
         lastFreezeMode = freezeMode;
     }

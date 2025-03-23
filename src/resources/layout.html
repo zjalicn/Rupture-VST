@@ -29,7 +29,7 @@
 
       <!-- Main Content Section -->
       <div class="main-content">
-        <!-- Top Row: Meters and Oscilloscope Section -->
+        <!-- Top Row: Meters and Large Dry/Wet Knob Section -->
         <div class="top-row">
           <!-- Input Meters -->
           <div class="meters-column input-meters">
@@ -60,10 +60,18 @@
             </div>
           </div>
 
-          <!-- Oscilloscope in the middle -->
-          <div class="oscilloscope-section">
-            <div class="oscilloscope-container">
-              <canvas id="oscilloscopeCanvas"></canvas>
+          <!-- Large Dry/Wet Knob in the middle -->
+          <div class="large-knob-section">
+            <div class="large-knob-container">
+              <div class="knob-large" id="dryWetKnob">
+                <div id="dryWetIndicator" class="knob-indicator-large"></div>
+              </div>
+              <div class="knob-label" style="font-size: 14px; margin-top: 10px">
+                Dry / Wet
+              </div>
+              <div id="dryWetValue" class="knob-value" style="font-size: 12px">
+                50%
+              </div>
             </div>
           </div>
 
@@ -118,22 +126,6 @@
             </div>
 
             <div class="knob-container">
-              <div class="knob" id="wetLevelKnob">
-                <div id="wetLevelIndicator" class="knob-indicator"></div>
-              </div>
-              <div class="knob-label">Wet</div>
-              <div id="wetLevelValue" class="knob-value">33%</div>
-            </div>
-
-            <div class="knob-container">
-              <div class="knob" id="dryLevelKnob">
-                <div id="dryLevelIndicator" class="knob-indicator"></div>
-              </div>
-              <div class="knob-label">Dry</div>
-              <div id="dryLevelValue" class="knob-value">40%</div>
-            </div>
-
-            <div class="knob-container">
               <div class="knob" id="widthKnob">
                 <div id="widthIndicator" class="knob-indicator"></div>
               </div>
@@ -161,8 +153,7 @@
         reverb: {
           roomSize: 0.5,
           damping: 0.5,
-          wetLevel: 0.33,
-          dryLevel: 0.4,
+          wetLevel: 0.5, // Changed from 0.33 to 0.5 for the new combined dry/wet control
           width: 1.0,
           freezeMode: 0.0,
         },
@@ -171,9 +162,6 @@
           lastRightLevel: 0,
           outLeftLevel: 0,
           outRightLevel: 0,
-        },
-        oscilloscope: {
-          data: [],
         },
       };
 
@@ -210,21 +198,12 @@
       // Reverb Controls
       // =======================
 
-      function updateReverbUI(
-        roomSize,
-        damping,
-        wetLevel,
-        dryLevel,
-        width,
-        freezeMode
-      ) {
+      function updateReverbUI(roomSize, damping, wetLevel, width, freezeMode) {
         if (roomSize !== undefined)
           state.reverb.roomSize = parseFloat(roomSize);
         if (damping !== undefined) state.reverb.damping = parseFloat(damping);
         if (wetLevel !== undefined)
           state.reverb.wetLevel = parseFloat(wetLevel);
-        if (dryLevel !== undefined)
-          state.reverb.dryLevel = parseFloat(dryLevel);
         if (width !== undefined) state.reverb.width = parseFloat(width);
         if (freezeMode !== undefined)
           state.reverb.freezeMode = parseFloat(freezeMode);
@@ -232,8 +211,7 @@
         // Map 0-1 range to 225-45 degrees (7 o'clock to 3 o'clock)
         const roomSizeAngle = 225 + state.reverb.roomSize * 270;
         const dampingAngle = 225 + state.reverb.damping * 270;
-        const wetLevelAngle = 225 + state.reverb.wetLevel * 270;
-        const dryLevelAngle = 225 + state.reverb.dryLevel * 270;
+        const dryWetAngle = 225 + state.reverb.wetLevel * 270;
         const widthAngle = 225 + state.reverb.width * 270;
 
         // Update knob rotations
@@ -244,11 +222,8 @@
           "dampingIndicator"
         ).style.transform = `translate(-50%, -100%) rotate(${dampingAngle}deg)`;
         document.getElementById(
-          "wetLevelIndicator"
-        ).style.transform = `translate(-50%, -100%) rotate(${wetLevelAngle}deg)`;
-        document.getElementById(
-          "dryLevelIndicator"
-        ).style.transform = `translate(-50%, -100%) rotate(${dryLevelAngle}deg)`;
+          "dryWetIndicator"
+        ).style.transform = `translate(-50%, -100%) rotate(${dryWetAngle}deg)`;
         document.getElementById(
           "widthIndicator"
         ).style.transform = `translate(-50%, -100%) rotate(${widthAngle}deg)`;
@@ -260,11 +235,8 @@
         document.getElementById("dampingValue").textContent = `${Math.round(
           state.reverb.damping * 100
         )}%`;
-        document.getElementById("wetLevelValue").textContent = `${Math.round(
+        document.getElementById("dryWetValue").textContent = `${Math.round(
           state.reverb.wetLevel * 100
-        )}%`;
-        document.getElementById("dryLevelValue").textContent = `${Math.round(
-          state.reverb.dryLevel * 100
         )}%`;
         document.getElementById("widthValue").textContent = `${Math.round(
           state.reverb.width * 100
@@ -345,62 +317,50 @@
           );
         });
 
-      // Set up Wet Level knob
+      // Set up Dry/Wet knob with improved sensitivity
       document
-        .getElementById("wetLevelKnob")
+        .getElementById("dryWetKnob")
         .addEventListener("mousedown", function (e) {
           e.preventDefault();
           isDragging = true;
-          activeKnob = "wetLevel";
+          activeKnob = "dryWet";
           const startY = e.clientY;
           const startValue = state.reverb.wetLevel;
 
+          // Get knob dimensions for better sensitivity
+          const knobRect = this.getBoundingClientRect();
+          const knobSize = Math.max(knobRect.width, knobRect.height);
+
+          // Calculate sensitivity based on knob size (smaller number = more sensitive)
+          const sensitivity = knobSize * 0.6;
+
           function handleMove(moveEvent) {
             moveEvent.preventDefault();
             const deltaY = startY - moveEvent.clientY;
+
+            // Use improved sensitivity
             const newValue = Math.max(
               0,
-              Math.min(1, startValue + deltaY / 100)
+              Math.min(1, startValue + deltaY / sensitivity)
             );
+
+            // Update the visual rotation immediately
+            const dryWetAngle = 225 + newValue * 270;
+            document.getElementById(
+              "dryWetIndicator"
+            ).style.transform = `translate(-50%, -100%) rotate(${dryWetAngle}deg)`;
+
+            document.getElementById("dryWetValue").textContent = `${Math.round(
+              newValue * 100
+            )}%`;
 
             state.reverb.wetLevel = newValue;
+
+            // Inverse relationship between dry and wet
+            const dryLevel = 1.0 - newValue;
+
             window.valueChanged("reverb", "wetLevel", newValue);
-            updateReverbUI();
-          }
-
-          document.addEventListener("mousemove", handleMove);
-          document.addEventListener(
-            "mouseup",
-            () => {
-              document.removeEventListener("mousemove", handleMove);
-              isDragging = false;
-              activeKnob = null;
-            },
-            { once: true }
-          );
-        });
-
-      // Set up Dry Level knob
-      document
-        .getElementById("dryLevelKnob")
-        .addEventListener("mousedown", function (e) {
-          e.preventDefault();
-          isDragging = true;
-          activeKnob = "dryLevel";
-          const startY = e.clientY;
-          const startValue = state.reverb.dryLevel;
-
-          function handleMove(moveEvent) {
-            moveEvent.preventDefault();
-            const deltaY = startY - moveEvent.clientY;
-            const newValue = Math.max(
-              0,
-              Math.min(1, startValue + deltaY / 100)
-            );
-
-            state.reverb.dryLevel = newValue;
-            window.valueChanged("reverb", "dryLevel", newValue);
-            updateReverbUI();
+            window.valueChanged("reverb", "dryLevel", dryLevel);
           }
 
           document.addEventListener("mousemove", handleMove);
@@ -460,69 +420,6 @@
         });
 
       // =======================
-      // Oscilloscope
-      // =======================
-
-      const canvas = document.getElementById("oscilloscopeCanvas");
-      const ctx = canvas.getContext("2d", { alpha: true });
-      let canvasSize = 0;
-
-      // Default buffer size for the oscilloscope
-      const BUFFER_SIZE = 256;
-
-      // Initialize with empty data
-      state.oscilloscope.data = Array(BUFFER_SIZE).fill(0);
-
-      function resizeOscilloscopeCanvas() {
-        const container = document.querySelector(".oscilloscope-container");
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
-
-        drawOscilloscope();
-      }
-
-      function drawOscilloscope() {
-        if (!ctx) return;
-
-        // Clear canvas with transparency
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        const width = canvas.width;
-        const height = canvas.height;
-        const centerY = height / 2;
-
-        // Draw center line
-        ctx.beginPath();
-        ctx.moveTo(0, centerY);
-        ctx.lineTo(width, centerY);
-        ctx.strokeStyle = "rgba(108, 92, 231, 0.3)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // Draw the waveform
-        if (state.oscilloscope.data.length > 0) {
-          ctx.beginPath();
-
-          const pointSpacing = width / state.oscilloscope.data.length;
-
-          // Start at the first data point
-          const firstY = centerY - state.oscilloscope.data[0] * height * 0.4;
-          ctx.moveTo(0, firstY);
-
-          // Draw a line to each subsequent data point
-          for (let i = 1; i < state.oscilloscope.data.length; i++) {
-            const x = i * pointSpacing;
-            const y = centerY - state.oscilloscope.data[i] * height * 0.4;
-            ctx.lineTo(x, y);
-          }
-
-          ctx.strokeStyle = "#6c5ce7";
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        }
-      }
-
-      // =======================
       // Meters and Audio State
       // =======================
 
@@ -556,21 +453,6 @@
       // Public Methods for C++ to call
       // =======================
 
-      // Method for C++ to update oscilloscope data
-      window.updateOscilloscopeData = function (dataArray) {
-        try {
-          if (typeof dataArray === "string") {
-            // Parse if it's a JSON string
-            state.oscilloscope.data = JSON.parse(dataArray);
-          } else {
-            state.oscilloscope.data = dataArray;
-          }
-          drawOscilloscope();
-        } catch (e) {
-          console.error("Error updating oscilloscope data:", e);
-        }
-      };
-
       // Method for C++ to update reverb parameters
       window.setReverbValues = function (
         roomSize,
@@ -580,14 +462,49 @@
         width,
         freezeMode
       ) {
-        updateReverbUI(
-          roomSize,
-          damping,
-          wetLevel,
-          dryLevel,
-          width,
-          freezeMode
-        );
+        // Store current values before updating
+        const oldWetLevel = state.reverb.wetLevel;
+
+        // Only update UI if there's an actual internal change (not triggered by UI)
+        if (Math.abs(wetLevel - oldWetLevel) > 0.01 && !isDragging) {
+          updateReverbUI(roomSize, damping, wetLevel, width, freezeMode);
+        } else if (!isDragging) {
+          // For other parameters, still update if we're not dragging
+          if (roomSize !== undefined)
+            state.reverb.roomSize = parseFloat(roomSize);
+          if (damping !== undefined) state.reverb.damping = parseFloat(damping);
+          if (width !== undefined) state.reverb.width = parseFloat(width);
+          if (freezeMode !== undefined)
+            state.reverb.freezeMode = parseFloat(freezeMode);
+
+          // Update angles and displays without changing wetLevel
+          const roomSizeAngle = 225 + state.reverb.roomSize * 270;
+          const dampingAngle = 225 + state.reverb.damping * 270;
+          const widthAngle = 225 + state.reverb.width * 270;
+
+          document.getElementById(
+            "roomSizeIndicator"
+          ).style.transform = `translate(-50%, -100%) rotate(${roomSizeAngle}deg)`;
+          document.getElementById(
+            "dampingIndicator"
+          ).style.transform = `translate(-50%, -100%) rotate(${dampingAngle}deg)`;
+          document.getElementById(
+            "widthIndicator"
+          ).style.transform = `translate(-50%, -100%) rotate(${widthAngle}deg)`;
+
+          document.getElementById("roomSizeValue").textContent = `${Math.round(
+            state.reverb.roomSize * 100
+          )}%`;
+          document.getElementById("dampingValue").textContent = `${Math.round(
+            state.reverb.damping * 100
+          )}%`;
+          document.getElementById("widthValue").textContent = `${Math.round(
+            state.reverb.width * 100
+          )}%`;
+
+          document.getElementById("freezeModeToggle").checked =
+            state.reverb.freezeMode > 0.5;
+        }
       };
 
       // Method for C++ to set audio levels
@@ -603,12 +520,8 @@
 
       // Initialize on load
       window.addEventListener("load", function () {
-        // Initialize oscilloscope
-        resizeOscilloscopeCanvas();
-        window.addEventListener("resize", resizeOscilloscopeCanvas);
-
         // Initialize reverb values
-        updateReverbUI(0.5, 0.5, 0.33, 0.4, 1.0, 0.0);
+        updateReverbUI(0.5, 0.5, 0.5, 1.0, 0.0);
 
         // Force an initial update with explicit zero values
         setAudioLevels(0, 0, 0, 0);

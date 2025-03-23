@@ -13,7 +13,7 @@ public:
     void paint(juce::Graphics &g) override;
     void resized() override;
 
-    // Update audio buffer for oscilloscope
+    // Update audio buffer for level metering
     void updateBuffer(const juce::AudioBuffer<float> &buffer);
 
     // Update levels for meters
@@ -40,8 +40,6 @@ private:
 
     // State tracking variables
     bool pageLoaded;
-    juce::CriticalSection bufferLock;
-    juce::AudioBuffer<float> latestBuffer;
 
     // Input/Output levels
     float lastLeftLevel;
@@ -57,9 +55,6 @@ private:
 
     // Timer callback for UI updates
     void timerCallback() override;
-
-    // Prepare waveform data for oscilloscope
-    juce::String prepareWaveformData();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LayoutView)
 };
